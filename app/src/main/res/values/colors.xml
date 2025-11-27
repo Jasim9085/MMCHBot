@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 👇 THIS WAS MISSING AND CAUSED THE CRASH 👇 -->
+    <color name="ic_launcher_background">#0F172A</color>
+
+    <!-- Standard Colors -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     
