@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
         logs = findViewById(R.id.txtLogs);
 
         // Setup Spinner
-        String[] models = {"gemini-1.5-flash", "gemini-pro"};
+        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
                 String savedPrompt = settings.getOrDefault("prompt", "");
                 prompt.setText(savedPrompt.isEmpty() ? DEFAULT_PROMPT : savedPrompt);
                 
-                String savedModel = settings.getOrDefault("model", "gemini-1.5-flash");
+                String savedModel = settings.getOrDefault("model", "gemini-2.5-flash");
                 modelSpinner.setSelection(savedModel.contains("pro") ? 1 : 0);
                 
                 logs.setText("✅ Settings loaded from storage.");
