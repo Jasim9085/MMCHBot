@@ -2,9 +2,9 @@ name: Build Socratic Tutor Hybrid App
 
 on:
   push:
-    branches: [ "man" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "min" ]
+    branches: [ "main" ]
 
 jobs:
   build:
