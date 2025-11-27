@@ -1,9 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Material3.DayNight.NoActionBar" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Brand Colors -->
-        <item name="colorPrimary">#6200EE</item>
-        <item name="colorPrimaryVariant">#3700B3</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:statusBarColor">@color/bg_start</item>
+        <item name="android:windowBackground">@color/bg_start</item>
+    </style>
+    <style name="GlassInput" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/accent_primary</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+        <item name="hintTextColor">@color/accent_glow</item>
+        <item name="boxBackgroundColor">#0DFFFFFF</item> <!-- Very faint fill -->
     </style>
 </resources>
