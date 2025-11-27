@@ -1,21 +1,27 @@
 package com.mmchbot;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import android.widget.TextView;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private TextInputEditText token, botName, channel, gemini, prompt;
     private Spinner modelSpinner;
     private TextView logs;
+    private final String SETTINGS_FILE = "settings.json";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,15 +38,16 @@ public class MainActivity extends AppCompatActivity {
         logs = findViewById(R.id.txtLogs);
 
         // Setup Spinner
-        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro"};
+        String[] models = {"gemini-1.5-flash", "gemini-pro"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
-        loadSettings();
+        // 📂 Load Settings from JSON on startup
+        loadSettingsFromJson();
 
         // Save & Restart
         findViewById(R.id.btnSave).setOnClickListener(v -> {
-            saveSettings();
+            saveSettingsToJson();
             restartBotService();
         });
 
@@ -51,31 +58,58 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadSettings() {
-        SharedPreferences prefs = getSharedPreferences("BotConfig", MODE_PRIVATE);
-        token.setText(prefs.getString("token", ""));
-        botName.setText(prefs.getString("botName", ""));
-        channel.setText(prefs.getString("channel", ""));
-        gemini.setText(prefs.getString("gemini", ""));
-        prompt.setText(prefs.getString("prompt", "Create an aesthetic post..."));
+    private void loadSettingsFromJson() {
+        File file = new File(getFilesDir(), SETTINGS_FILE);
+        if (!file.exists()) return;
+
+        try (FileReader reader = new FileReader(file)) {
+            // Parse JSON to Map
+            Map<String, String> settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+            
+            if (settings != null) {
+                token.setText(settings.getOrDefault("token", ""));
+                botName.setText(settings.getOrDefault("botName", ""));
+                channel.setText(settings.getOrDefault("channel", ""));
+                gemini.setText(settings.getOrDefault("gemini", ""));
+                prompt.setText(settings.getOrDefault("prompt", "Create an aesthetic post..."));
+                
+                // Set Spinner Selection
+                String savedModel = settings.getOrDefault("model", "gemini-1.5-flash");
+                if (savedModel.contains("pro")) modelSpinner.setSelection(1);
+                else modelSpinner.setSelection(0);
+                
+                logs.setText("✅ Settings loaded from " + file.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            logs.setText("⚠️ Error loading settings: " + e.getMessage());
+        }
     }
 
-    private void saveSettings() {
-        SharedPreferences.Editor editor = getSharedPreferences("BotConfig", MODE_PRIVATE).edit();
-        editor.putString("token", token.getText().toString());
-        editor.putString("botName", botName.getText().toString());
-        editor.putString("channel", channel.getText().toString());
-        editor.putString("gemini", gemini.getText().toString());
-        editor.putString("prompt", prompt.getText().toString());
-        editor.putString("model", modelSpinner.getSelectedItem().toString());
-        editor.apply();
-        Toast.makeText(this, "Settings Saved!", Toast.LENGTH_SHORT).show();
+    private void saveSettingsToJson() {
+        Map<String, String> settings = new HashMap<>();
+        settings.put("token", token.getText().toString().trim());
+        settings.put("botName", botName.getText().toString().trim());
+        settings.put("channel", channel.getText().toString().trim());
+        settings.put("gemini", gemini.getText().toString().trim());
+        settings.put("prompt", prompt.getText().toString());
+        settings.put("model", modelSpinner.getSelectedItem().toString());
+
+        try {
+            File file = new File(getFilesDir(), SETTINGS_FILE);
+            try (FileWriter writer = new FileWriter(file)) {
+                new Gson().toJson(settings, writer);
+            }
+            Toast.makeText(this, "Saved to settings.json", Toast.LENGTH_SHORT).show();
+            logs.setText("💾 Saved: " + file.getAbsolutePath());
+        } catch (Exception e) {
+            Toast.makeText(this, "Save Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void restartBotService() {
         Intent intent = new Intent(this, BotService.class);
-        stopService(intent); // Stop old instance
-        startForegroundService(intent); // Start new
-        logs.setText("🚀 Bot Restarting with new settings...");
+        stopService(intent); 
+        startForegroundService(intent); 
+        logs.append("\n🚀 Bot Restarting...");
     }
 }
