@@ -23,6 +23,21 @@ public class MainActivity extends AppCompatActivity {
     private TextView logs;
     private final String SETTINGS_FILE = "settings.json";
 
+    // 👇 THIS IS THE NEW STRICT PROMPT 👇
+    private final String DEFAULT_PROMPT = 
+        "Generate an aesthetic Telegram movie post for '{name}'.\n\n" +
+        "STRICT RULES:\n" +
+        "1. Use HTML tags <b> and <i> ONLY. Do NOT use Markdown (** or __).\n" +
+        "2. Do NOT include download links.\n" +
+        "3. Keep the Synopsis short (2 sentences).\n\n" +
+        "REQUIRED FORMAT:\n" +
+        "🎬 <b>Title</b> (Year)\n" +
+        "⭐️ <b>Rating:</b> 0.0/10 (IMDb)\n" +
+        "🎭 <b>Cast:</b> Actor 1, Actor 2, Actor 3\n" +
+        "📚 <b>Genre:</b> Action, Drama\n\n" +
+        "📝 <b>Storyline:</b>\n" +
+        "<i>[Insert engaging synopsis here with emojis]</i>";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -42,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
-        // 📂 Load Settings from JSON on startup
+        // Load Settings
         loadSettingsFromJson();
 
         // Save & Restart
@@ -60,10 +75,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSettingsFromJson() {
         File file = new File(getFilesDir(), SETTINGS_FILE);
-        if (!file.exists()) return;
+        
+        // If file doesn't exist, fill the Prompt with our new Default
+        if (!file.exists()) {
+            prompt.setText(DEFAULT_PROMPT);
+            return;
+        }
 
         try (FileReader reader = new FileReader(file)) {
-            // Parse JSON to Map
             Map<String, String> settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
             
             if (settings != null) {
@@ -71,17 +90,25 @@ public class MainActivity extends AppCompatActivity {
                 botName.setText(settings.getOrDefault("botName", ""));
                 channel.setText(settings.getOrDefault("channel", ""));
                 gemini.setText(settings.getOrDefault("gemini", ""));
-                prompt.setText(settings.getOrDefault("prompt", "Create an aesthetic post..."));
                 
-                // Set Spinner Selection
+                // Use saved prompt, OR default if empty
+                String savedPrompt = settings.getOrDefault("prompt", "");
+                if (savedPrompt.isEmpty()) {
+                    prompt.setText(DEFAULT_PROMPT);
+                } else {
+                    prompt.setText(savedPrompt);
+                }
+                
+                // Set Spinner
                 String savedModel = settings.getOrDefault("model", "gemini-1.5-flash");
                 if (savedModel.contains("pro")) modelSpinner.setSelection(1);
                 else modelSpinner.setSelection(0);
                 
-                logs.setText("✅ Settings loaded from " + file.getAbsolutePath());
+                logs.setText("✅ Settings loaded.");
             }
         } catch (Exception e) {
             logs.setText("⚠️ Error loading settings: " + e.getMessage());
+            prompt.setText(DEFAULT_PROMPT); // Fallback
         }
     }
 
@@ -99,8 +126,8 @@ public class MainActivity extends AppCompatActivity {
             try (FileWriter writer = new FileWriter(file)) {
                 new Gson().toJson(settings, writer);
             }
-            Toast.makeText(this, "Saved to settings.json", Toast.LENGTH_SHORT).show();
-            logs.setText("💾 Saved: " + file.getAbsolutePath());
+            Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT).show();
+            logs.setText("💾 Settings Saved.");
         } catch (Exception e) {
             Toast.makeText(this, "Save Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
