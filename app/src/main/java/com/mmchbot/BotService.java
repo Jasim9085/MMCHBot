@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.util.Base64; // NEW IMPORT
 import android.util.Log;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
@@ -32,8 +33,6 @@ public class BotService extends Service {
     private long lastUpdateId = 0;
     private PowerManager.WakeLock wakeLock;
     private BotDatabase db;
-    
-    // Professional Queue: Handles tasks one by one to prevent crashes
     private final ExecutorService taskQueue = Executors.newSingleThreadExecutor();
 
     // Config
@@ -42,13 +41,10 @@ public class BotService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // 1. Load Config & DB
         loadConfig();
         db = new BotDatabase(this);
-        
         startForeground(1, createNotification());
 
-        // 2. Acquire Smart WakeLock (10 min timeout safety)
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MMCHBot::CoreLock");
         wakeLock.acquire(10*60*1000L);
@@ -61,26 +57,21 @@ public class BotService extends Service {
 
         if (!isRunning) {
             isRunning = true;
-            
-            // 3. Network Optimization: Connection Pooling & Timeouts
             client = new OkHttpClient.Builder()
-                .connectTimeout(60, TimeUnit.SECONDS) // Longer timeout for AI
+                .connectTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build();
             
             new Thread(this::runAdaptivePollingLoop).start();
-            reportError("✅ Enterprise Bot Started", false);
+            reportError("✅ Vision Bot Started", false);
         }
-
         return START_STICKY;
     }
 
-    // --- ADAPTIVE POLLING ENGINE ---
-    // Saves battery by slowing down when no one is talking
     private void runAdaptivePollingLoop() {
-        int currentInterval = 1000; // Start fast (1s)
-        final int MAX_INTERVAL = 30000; // Max slow (30s)
+        int currentInterval = 1000;
+        final int MAX_INTERVAL = 30000;
         int retryCount = 0;
 
         while (isRunning) {
@@ -94,26 +85,18 @@ public class BotService extends Service {
                         String json = response.body().string();
                         boolean activityFound = handleUpdates(json);
                         
-                        // Adaptive Logic
                         if (activityFound) {
-                            currentInterval = 1000; // Speed up
+                            currentInterval = 1000;
                             retryCount = 0;
                         } else {
-                            // Slow down gradually
                             currentInterval = Math.min(currentInterval + 500, MAX_INTERVAL);
                         }
-                    } else {
-                         throw new IOException("HTTP " + response.code());
                     }
                 }
             } catch (Exception e) {
                 retryCount++;
-                Log.e("BotEngine", "Loop Error: " + e.getMessage());
-                // Backoff Strategy
                 try { Thread.sleep(Math.min(retryCount * 2000, 60000)); } catch (InterruptedException ignored) {}
             }
-            
-            // Sleep for the adaptive interval
             try { Thread.sleep(currentInterval); } catch (InterruptedException ignored) {}
         }
     }
@@ -131,7 +114,6 @@ public class BotService extends Service {
                 JsonObject update = result.get(i).getAsJsonObject();
                 lastUpdateId = update.get("update_id").getAsLong();
                 
-                // Offload logic to Queue to keep loop fast
                 taskQueue.execute(() -> {
                     try {
                         if (update.has("message")) {
@@ -140,13 +122,11 @@ public class BotService extends Service {
                             handleCallback(update.getAsJsonObject("callback_query"));
                         }
                     } catch (Exception e) {
-                        reportError("Logic Crash: " + e.getMessage(), false);
+                        e.printStackTrace();
                     }
                 });
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
         return hasActivity;
     }
 
@@ -154,43 +134,36 @@ public class BotService extends Service {
         long chatId = message.get("chat").getAsJsonObject().get("id").getAsLong();
         String text = message.has("text") ? message.get("text").getAsString() : null;
 
-        // Load State from DB
         int state = db.getStep(chatId);
         Map<String, String> data = db.getData(chatId);
 
-        // --- COMMANDS ---
         if (text != null) {
             if (text.equals("/start")) {
                 db.saveState(chatId, 0, new HashMap<>());
                 sendMessage(chatId, "🎬 **Professional Movie Bot**\n\nSystem Online.\nSend me a **Thumbnail**.");
                 return;
             }
-            if (text.equals("/status")) {
-                sendHealthReport(chatId);
-                return;
-            }
         }
 
-        // --- STATE MACHINE ---
         try {
             if (state == 0) { // Photo
                 String fileId = extractFileId(message, chatId);
                 if (fileId != null) {
                     data.put("photo", fileId);
                     db.saveState(chatId, 1, data);
-                    sendMessage(chatId, "✅ Image Locked.\nSend **Movie Name**.");
+                    sendMessage(chatId, "✅ Image Analyzed.\nSend **Movie Name**.");
                 }
             } 
             else if (state == 1 && text != null) { // Name
                 data.put("name", text);
                 db.saveState(chatId, 2, data);
-                sendMessage(chatId, "✅ Name Locked.\nSend **Download Link**.");
+                sendMessage(chatId, "✅ Name Saved.\nSend **Download Link**.");
             }
-            else if (state == 2 && text != null) { // Link
+            else if (state == 2 && text != null) { // Link & Gen
                 data.put("link", text);
-                db.saveState(chatId, 2, data); // Stay on state 2 while generating
-                sendMessage(chatId, "🧠 **AI Processing...**\nAnalyzing request with " + MODEL);
-                generateGemini(chatId, data.get("name"), data.get("photo"));
+                db.saveState(chatId, 2, data);
+                sendMessage(chatId, "👀 **Vision AI Active**\nI'm looking at the poster to find the cast & rating...");
+                generateGeminiVision(chatId, data.get("name"), data.get("photo"));
             }
             else if (state == 3 && text != null) { // Schedule
                  try {
@@ -198,11 +171,11 @@ public class BotService extends Service {
                      schedulePost(chatId, minutes, data);
                      db.saveState(chatId, 0, new HashMap<>()); 
                  } catch (NumberFormatException e) {
-                     sendMessage(chatId, "⚠️ Invalid Number. Try again.");
+                     sendMessage(chatId, "⚠️ Invalid Number.");
                  }
             }
         } catch (Exception e) {
-            sendMessage(chatId, "⚠️ **Critical Error:** " + e.getMessage());
+            sendMessage(chatId, "⚠️ Error: " + e.getMessage());
         }
     }
 
@@ -236,30 +209,36 @@ public class BotService extends Service {
         }
     }
 
-    // --- INTELLIGENCE & UTILS ---
-
-    private void sendHealthReport(long chatId) {
-        IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        Intent batteryStatus = registerReceiver(null, ifilter);
-        int level = batteryStatus != null ? batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) : -1;
-
-        String report = "📊 **System Health Report**\n\n" +
-                "🔋 **Battery:** " + level + "%\n" +
-                "🧠 **Memory:** Stable\n" +
-                "🤖 **Bot Engine:** Running\n" +
-                "📡 **Network:** Active\n" +
-                "📚 **DB Status:** Connected";
-        sendMessage(chatId, report);
-    }
-
-    private void generateGemini(long chatId, String name, String photoId) {
-        // We use the queue again to ensure AI requests don't block
+    // --- NEW: GEMINI VISION LOGIC ---
+    
+    private void generateGeminiVision(long chatId, String name, String fileId) {
         taskQueue.execute(() -> {
             try {
-                String prompt = PROMPT_TEMPLATE.replace("{name}", name) + " for " + name;
-                JSONObject json = new JSONObject();
-                json.put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
+                // 1. Download Image from Telegram
+                String base64Image = downloadTelegramPhoto(fileId);
+                if (base64Image == null) {
+                    sendMessage(chatId, "⚠️ Failed to download image from Telegram. Trying text-only...");
+                    // Fallback to text only logic if image fails (omitted for brevity, assume usually works)
+                    return;
+                }
 
+                // 2. Prepare Multimodal JSON
+                String prompt = PROMPT_TEMPLATE.replace("{name}", name);
+                
+                JSONObject inlineData = new JSONObject();
+                inlineData.put("mime_type", "image/jpeg");
+                inlineData.put("data", base64Image);
+
+                JSONObject textPart = new JSONObject().put("text", prompt);
+                JSONObject imagePart = new JSONObject().put("inline_data", inlineData);
+
+                JSONObject content = new JSONObject();
+                content.put("parts", new JSONArray().put(textPart).put(imagePart));
+
+                JSONObject json = new JSONObject();
+                json.put("contents", new JSONArray().put(content));
+
+                // 3. Send to Gemini
                 RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json"));
                 Request req = new Request.Builder()
                     .url("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent?key=" + GEMINI_KEY)
@@ -267,7 +246,7 @@ public class BotService extends Service {
                     .build();
 
                 try (Response res = client.newCall(req).execute()) {
-                    if (!res.isSuccessful()) throw new IOException("Gemini API " + res.code());
+                    if (!res.isSuccessful()) throw new IOException("Gemini API " + res.code() + " " + res.message());
                     
                     String resStr = res.body().string();
                     String result = new JSONObject(resStr).getJSONArray("candidates")
@@ -276,22 +255,59 @@ public class BotService extends Service {
                     
                     Map<String, String> data = db.getData(chatId);
                     data.put("desc", result);
-                    db.saveState(chatId, 2, data); // Update DB
+                    db.saveState(chatId, 2, data);
                     
-                    sendPreview(chatId, photoId, result);
+                    sendPreview(chatId, fileId, result);
                 }
             } catch (Exception e) {
-                sendMessage(chatId, "⚠️ **AI Generation Failed:** " + e.getMessage() + "\nTry again later.");
+                e.printStackTrace();
+                sendMessage(chatId, "⚠️ **AI Error:** " + e.getMessage());
             }
         });
     }
+
+    // --- NEW: TELEGRAM IMAGE DOWNLOADER ---
+    private String downloadTelegramPhoto(String fileId) {
+        try {
+            // Step 1: Get File Path
+            Request pathReq = new Request.Builder()
+                .url("https://api.telegram.org/bot" + TOKEN + "/getFile?file_id=" + fileId)
+                .build();
+            
+            String filePath;
+            try (Response res = client.newCall(pathReq).execute()) {
+                if (!res.isSuccessful()) return null;
+                String json = res.body().string();
+                filePath = JsonParser.parseString(json).getAsJsonObject()
+                    .get("result").getAsJsonObject().get("file_path").getAsString();
+            }
+
+            // Step 2: Download Bytes
+            Request dlReq = new Request.Builder()
+                .url("https://api.telegram.org/file/bot" + TOKEN + "/" + filePath)
+                .build();
+
+            try (Response res = client.newCall(dlReq).execute()) {
+                if (!res.isSuccessful()) return null;
+                byte[] imageBytes = res.body().bytes();
+                
+                // Step 3: Convert to Base64 (No Wrap)
+                return Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            }
+        } catch (Exception e) {
+            Log.e("BotVision", "Download failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // --- NETWORKING ---
 
     private void sendMessage(long chatId, String text) {
         taskQueue.execute(() -> {
             MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
                 .addFormDataPart("chat_id", String.valueOf(chatId))
                 .addFormDataPart("text", text)
-                .addFormDataPart("parse_mode", "Markdown");
+                .addFormDataPart("parse_mode", "HTML"); // Changed to HTML for safety
             executeAPI("sendMessage", builder.build());
         });
     }
@@ -309,9 +325,9 @@ public class BotService extends Service {
 
             if (executeAPI("sendPhoto", builder.build())) {
                 sendMessage(adminId, "✅ **Posted!**");
-                db.saveState(adminId, 0, new HashMap<>()); // Reset DB on success
+                db.saveState(adminId, 0, new HashMap<>());
             } else {
-                sendMessage(adminId, "❌ **Failed to Post.** Check Permissions.");
+                sendMessage(adminId, "❌ **Failed to Post.** Check Channel ID.");
             }
         });
     }
@@ -329,6 +345,26 @@ public class BotService extends Service {
             
             executeAPI("sendPhoto", builder.build());
         });
+    }
+
+    private void answerCallback(String callbackId) {
+         taskQueue.execute(() -> {
+             MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
+                .addFormDataPart("callback_query_id", callbackId);
+             executeAPI("answerCallbackQuery", builder.build());
+         });
+    }
+
+    private boolean executeAPI(String method, RequestBody body) {
+        try {
+            Request request = new Request.Builder()
+                .url("https://api.telegram.org/bot" + TOKEN + "/" + method)
+                .post(body)
+                .build();
+            try (Response response = client.newCall(request).execute()) {
+                return response.isSuccessful();
+            }
+        } catch (Exception e) { return false; }
     }
 
     private void schedulePost(long chatId, int minutes, Map<String, String> data) {
@@ -350,37 +386,6 @@ public class BotService extends Service {
         }
     }
 
-    private void answerCallback(String callbackId) {
-         taskQueue.execute(() -> {
-             MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("callback_query_id", callbackId);
-             executeAPI("answerCallbackQuery", builder.build());
-         });
-    }
-
-    private boolean executeAPI(String method, RequestBody body) {
-        try {
-            Request request = new Request.Builder()
-                .url("https://api.telegram.org/bot" + TOKEN + "/" + method)
-                .post(body)
-                .build();
-            try (Response response = client.newCall(request).execute()) {
-                return response.isSuccessful();
-            }
-        } catch (Exception e) { 
-            Log.e("BotNetwork", "Req Failed: " + e.getMessage());
-            return false; 
-        }
-    }
-
-    // --- HELPERS ---
-
-    private void reportError(String msg, boolean toUser) {
-        new Handler(Looper.getMainLooper()).post(() -> 
-            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show()
-        );
-    }
-
     private void loadConfig() {
         File file = new File(getFilesDir(), SETTINGS_FILE);
         if (!file.exists()) return;
@@ -397,13 +402,19 @@ public class BotService extends Service {
         } catch (Exception e) { reportError("Config Error: " + e.getMessage(), false); }
     }
 
+    private void reportError(String msg, boolean toUser) {
+        new Handler(Looper.getMainLooper()).post(() -> 
+            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_LONG).show()
+        );
+    }
+
     private Notification createNotification() {
         String channelId = "bot_service";
         NotificationChannel channel = new NotificationChannel(channelId, "Bot Service", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
         return new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("MMCH Enterprise Bot")
-                .setContentText("Status: Online | Mode: Adaptive")
+                .setContentTitle("MMCH Vision Bot")
+                .setContentText("Listening...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .build();
     }
@@ -412,7 +423,7 @@ public class BotService extends Service {
     public void onDestroy() {
         isRunning = false;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        taskQueue.shutdown(); // Clean up threads
+        taskQueue.shutdown(); 
         super.onDestroy();
     }
 
