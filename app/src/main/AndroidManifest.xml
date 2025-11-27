@@ -2,7 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Required for keeping the bot alive -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- 👇 THIS WAS MISSING AND CAUSED THE CRASH 👇 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -22,10 +29,12 @@
             </intent-filter>
         </activity>
 
-        <!-- The Bot Listener Service -->
-        <service android:name=".BotService" android:foregroundServiceType="dataSync" />
+        <!-- Service declaration matches the permission above -->
+        <service 
+            android:name=".BotService" 
+            android:foregroundServiceType="dataSync" 
+            android:exported="false" />
         
-        <!-- The Wake-Up Alarm for Scheduled Posts -->
         <receiver android:name=".AlarmReceiver" />
 
     </application>
