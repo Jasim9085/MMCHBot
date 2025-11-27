@@ -17,26 +17,32 @@ public class AlarmReceiver extends BroadcastReceiver {
         String filePath = intent.getStringExtra("filePath");
         if (filePath == null) return;
 
-        // Load Data
         File file = new File(filePath);
         if (!file.exists()) return;
 
         try {
-            BufferedReader reader = new BufferedReader(new FileReader(file));
-            Map<String, String> data = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
-            reader.close();
-
-            SharedPreferences prefs = context.getSharedPreferences("BotConfig", Context.MODE_PRIVATE);
-            String token = prefs.getString("token", "");
-            String channel = prefs.getString("channel", "");
-
-            if (!token.isEmpty() && !channel.isEmpty()) {
-                // Post in background thread
-                new Thread(() -> postRaw(token, channel, data)).start();
+            // Load Settings Manually
+            File settingsFile = new File(context.getFilesDir(), "settings.json");
+            if (!settingsFile.exists()) return;
+            
+            Map<String, String> settings;
+            try (FileReader reader = new FileReader(settingsFile)) {
+                 settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
             }
             
-            // Cleanup
-            file.delete();
+            String token = settings.get("token");
+            String channel = settings.get("channel");
+
+            // Load Post Data
+            Map<String, String> data;
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                data = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+            }
+
+            if (token != null && channel != null) {
+                new Thread(() -> postRaw(token, channel, data)).start();
+            }
+            file.delete(); // Cleanup
 
         } catch (Exception e) { e.printStackTrace(); }
     }
@@ -44,8 +50,6 @@ public class AlarmReceiver extends BroadcastReceiver {
     private void postRaw(String token, String channel, Map<String, String> data) {
         try {
             OkHttpClient client = new OkHttpClient();
-            
-            // Construct Link Button JSON
             String keyboard = "{\"inline_keyboard\":[[{\"text\":\"📥 Download Movie 📥\",\"url\":\"" + data.get("link") + "\"}]]}";
 
             MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
