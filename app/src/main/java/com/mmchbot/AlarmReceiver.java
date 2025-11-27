@@ -3,48 +3,70 @@ package com.mmchbot;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.os.PowerManager;
+import android.util.Log;
+import okhttp3.*;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.io.*;
 import java.util.Map;
-import okhttp3.*;
 
 public class AlarmReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        // 1. Acquire a temporary WakeLock to ensure the device stays awake 
+        // long enough to send the post.
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MMCHBot::AlarmWakeLock");
+        wl.acquire(60 * 1000L); // Hold for 60 seconds max
+
         String filePath = intent.getStringExtra("filePath");
-        if (filePath == null) return;
+        if (filePath == null) {
+            wl.release();
+            return;
+        }
 
         File file = new File(filePath);
-        if (!file.exists()) return;
+        if (!file.exists()) {
+            wl.release();
+            return;
+        }
 
-        try {
-            // Load Settings Manually
-            File settingsFile = new File(context.getFilesDir(), "settings.json");
-            if (!settingsFile.exists()) return;
-            
-            Map<String, String> settings;
-            try (FileReader reader = new FileReader(settingsFile)) {
-                 settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+        // 2. Start a background thread (Network cannot run on main thread)
+        new Thread(() -> {
+            try {
+                // Load Settings (To get Token/Channel)
+                File settingsFile = new File(context.getFilesDir(), "settings.json");
+                Map<String, String> settings;
+                try (FileReader reader = new FileReader(settingsFile)) {
+                     settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+                }
+                
+                String token = settings.get("token");
+                String channel = settings.get("channel");
+
+                // Load Post Data
+                Map<String, String> data;
+                try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                    data = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+                }
+
+                if (token != null && channel != null) {
+                    postRaw(token, channel, data);
+                    Log.d("AlarmReceiver", "Scheduled Post Sent!");
+                }
+                
+                // Cleanup
+                file.delete();
+
+            } catch (Exception e) {
+                Log.e("AlarmReceiver", "Failed: " + e.getMessage());
+            } finally {
+                // 3. Always release the lock
+                if (wl.isHeld()) wl.release();
             }
-            
-            String token = settings.get("token");
-            String channel = settings.get("channel");
-
-            // Load Post Data
-            Map<String, String> data;
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                data = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
-            }
-
-            if (token != null && channel != null) {
-                new Thread(() -> postRaw(token, channel, data)).start();
-            }
-            file.delete(); // Cleanup
-
-        } catch (Exception e) { e.printStackTrace(); }
+        }).start();
     }
 
     private void postRaw(String token, String channel, Map<String, String> data) {
@@ -64,7 +86,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                 .post(builder.build())
                 .build();
 
-            client.newCall(request).execute();
+            client.newCall(request).execute().close();
         } catch (Exception e) { e.printStackTrace(); }
     }
 }
