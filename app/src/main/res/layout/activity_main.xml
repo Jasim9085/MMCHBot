@@ -4,152 +4,237 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="@drawable/bg_main_gradient">
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="16dp">
+        android:fillViewport="true"
+        android:padding="20dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <TextView
-                android:text="🤖 Bot Configuration"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="#333"
-                android:layout_marginBottom="16dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
-            <!-- Telegram Config -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- HEADER -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                android:layout_marginBottom="12dp">
-                
+                android:gravity="center_vertical"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_bot_face"
+                    app:tint="@color/accent_glow"/>
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:layout_marginStart="16dp"
+                    android:orientation="vertical">
+                    
+                    <TextView
+                        android:text="MMCH Bot"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.05"
+                        android:textColor="@color/text_primary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                    
+                    <TextView
+                        android:text="Control Panel"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- TELEGRAM SETTINGS CARD -->
+            <TextView
+                android:text="CONNECTION"
+                android:textColor="@color/accent_primary"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginStart="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_glass_card"
+                android:padding="20dp"
+                android:layout_marginBottom="24dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
                     <com.google.android.material.textfield.TextInputLayout
+                        style="@style/GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Telegram Bot Token">
+                        android:hint="Bot Token">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputToken"
+                            android:textColor="@color/text_primary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textNoSuggestions"/>
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
+                        style="@style/GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Bot Username (without @)">
+                        android:layout_marginTop="16dp"
+                        android:hint="Bot Username">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputBotName"
+                            android:textColor="@color/text_primary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
                     
                     <com.google.android.material.textfield.TextInputLayout
+                        style="@style/GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Channel ID (e.g., -100...)">
+                        android:layout_marginTop="16dp"
+                        android:hint="Channel ID">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputChannel"
+                            android:textColor="@color/text_primary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            </FrameLayout>
 
-            <!-- AI Config -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- AI SETTINGS CARD -->
+            <TextView
+                android:text="INTELLIGENCE"
+                android:textColor="@color/accent_primary"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginStart="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                android:layout_marginBottom="12dp">
+                android:background="@drawable/bg_glass_card"
+                android:padding="20dp"
+                android:layout_marginBottom="24dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:orientation="vertical">
                     
                     <com.google.android.material.textfield.TextInputLayout
+                        style="@style/GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="Gemini API Key">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputGemini"
+                            android:textColor="@color/text_primary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <TextView
-                        android:text="AI Model Selection"
-                        android:layout_marginTop="10dp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"/>
-                        
-                    <Spinner
-                        android:id="@+id/spinnerModel"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"/>
-                        
-                    <com.google.android.material.textfield.TextInputLayout
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Custom Prompt (Optional)">
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:backgroundTint="#05FFFFFF"
+                        android:padding="4dp">
+                        <Spinner
+                            android:id="@+id/spinnerModel"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:theme="@style/Theme.Material3.DayNight.NoActionBar"/>
+                    </LinearLayout>
+                        
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/GlassInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:hint="Custom Prompt Template">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputPrompt"
+                            android:textColor="@color/text_primary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Create an aesthetic Telegram post..."/>
+                            android:lines="3"
+                            android:gravity="top"/>
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            </FrameLayout>
 
-            <!-- Actions -->
+            <!-- ACTION BUTTONS -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
-                android:text="💾 SAVE &amp; RESTART BOT"
+                android:text="Launch System"
+                android:textColor="#FFFFFF"
                 android:textSize="16sp"
-                app:cornerRadius="8dp"/>
+                android:textStyle="bold"
+                app:icon="@drawable/ic_rocket"
+                app:iconGravity="textStart"
+                android:background="@drawable/btn_gradient"
+                app:backgroundTint="@null"
+                app:elevation="8dp"/>
                 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnStop"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🛑 STOP SERVICE"
-                android:backgroundTint="#D32F2F"
-                android:layout_marginTop="8dp"/>
+                android:layout_height="50dp"
+                android:text="Terminate Service"
+                android:textColor="@color/danger"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="@color/danger"
+                app:strokeWidth="1dp"
+                app:cornerRadius="12dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="30dp"/>
+
+            <!-- TERMINAL LOGS -->
+            <TextView
+                android:text="SYSTEM LOGS"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp"
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
             <TextView
                 android:id="@+id/txtLogs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Logs will appear here..."
-                android:layout_marginTop="20dp"
+                android:text="> System initialized..."
+                android:textColor="@color/accent_glow"
                 android:fontFamily="monospace"
-                android:background="#E0E0E0"
-                android:padding="10dp"/>
+                android:textSize="12sp"
+                android:background="@drawable/bg_glass_card"
+                android:backgroundTint="#000000"
+                android:padding="16dp"/>
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
