@@ -45,6 +45,8 @@
                         android:hint="Telegram Bot Token">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputToken"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                             android:inputType="textNoSuggestions"/>
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -54,7 +56,9 @@
                         android:layout_marginTop="10dp"
                         android:hint="Bot Username (without @)">
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/inputBotName"/>
+                            android:id="@+id/inputBotName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
                     
                     <com.google.android.material.textfield.TextInputLayout
@@ -63,7 +67,9 @@
                         android:layout_marginTop="10dp"
                         android:hint="Channel ID (e.g., -100...)">
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/inputChannel"/>
+                            android:id="@+id/inputChannel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -87,7 +93,9 @@
                         android:layout_height="wrap_content"
                         android:hint="Gemini API Key">
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/inputGemini"/>
+                            android:id="@+id/inputGemini"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <TextView
@@ -108,13 +116,14 @@
                         android:hint="Custom Prompt (Optional)">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/inputPrompt"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                             android:text="Create an aesthetic Telegram post..."/>
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Actions -->
-            <!-- FIXED: Replaced & with &amp; -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
