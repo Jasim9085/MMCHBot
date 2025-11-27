@@ -29,12 +29,12 @@ public class MainActivity extends AppCompatActivity {
         "STRICT RULES:\n" +
         "1. Use HTML tags <b> and <i> ONLY. Do NOT use Markdown (** or __).\n" +
         "2. Do NOT include download links.\n" +
-        "3. Keep the Synopsis short (2 sentences).\n\n" +
+        "3. Keep the Synopsis short (2-3 sentences).\n\n" +
         "REQUIRED FORMAT:\n" +
         "🎬 <b>Title</b> (Year)\n" +
         "⭐️ <b>Rating:</b> 0.0/10 (IMDb)\n" +
         "🎭 <b>Cast:</b> Actor 1, Actor 2, Actor 3\n" +
-        "📚 <b>Genre:</b> Action, Drama\n\n" +
+        "📚 <b>Genre:</b> Action, Drama, Horror, Thriller etc.\n\n" +
         "📝 <b>Storyline:</b>\n" +
         "<i>[Insert engaging synopsis here with emojis]</i>";
 
