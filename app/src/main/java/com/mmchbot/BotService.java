@@ -3,21 +3,13 @@ package com.mmchbot;
 import android.app.*;
 import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.TelegramBotsApi;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.objects.InputFile;
-import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import okhttp3.*;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
 import java.io.*;
 import java.util.*;
 import org.json.JSONArray;
@@ -25,8 +17,9 @@ import org.json.JSONObject;
 
 public class BotService extends Service {
 
-    private TelegramLongPollingBot bot;
-    private TelegramBotsApi botsApi;
+    private boolean isRunning = false;
+    private OkHttpClient client;
+    private long lastUpdateId = 0;
 
     // States
     private final Map<Long, Integer> userState = new HashMap<>();
@@ -38,8 +31,7 @@ public class BotService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        loadConfig(); // <--- READ FROM JSON HERE
-
+        loadConfig();
         startForeground(1, createNotification());
 
         if (TOKEN.isEmpty()) {
@@ -47,23 +39,228 @@ public class BotService extends Service {
             return START_NOT_STICKY;
         }
 
-        try {
-            if (botsApi == null) botsApi = new TelegramBotsApi(DefaultBotSession.class);
-            bot = new MovieBot();
-            botsApi.registerBot(bot);
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (!isRunning) {
+            isRunning = true;
+            client = new OkHttpClient();
+            new Thread(this::runBotLoop).start();
         }
 
         return START_STICKY;
     }
 
+    private void runBotLoop() {
+        while (isRunning) {
+            try {
+                // 1. Get Updates from Telegram
+                Request request = new Request.Builder()
+                    .url("https://api.telegram.org/bot" + TOKEN + "/getUpdates?offset=" + (lastUpdateId + 1) + "&timeout=10")
+                    .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String json = response.body().string();
+                        handleUpdates(json);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                // Wait a bit before retrying on error
+                try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            }
+        }
+    }
+
+    private void handleUpdates(String jsonResponse) {
+        try {
+            JsonObject root = JsonParser.parseString(jsonResponse).getAsJsonObject();
+            if (!root.get("ok").getAsBoolean()) return;
+
+            JsonArray result = root.getAsJsonArray("result");
+            for (int i = 0; i < result.size(); i++) {
+                JsonObject update = result.get(i).getAsJsonObject();
+                lastUpdateId = update.get("update_id").getAsLong();
+                
+                if (update.has("message")) {
+                    handleMessage(update.getAsJsonObject("message"));
+                } else if (update.has("callback_query")) {
+                    handleCallback(update.getAsJsonObject("callback_query"));
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void handleMessage(JsonObject message) {
+        long chatId = message.get("chat").getAsJsonObject().get("id").getAsLong();
+        userState.putIfAbsent(chatId, 0);
+        userData.putIfAbsent(chatId, new HashMap<>());
+
+        String text = message.has("text") ? message.get("text").getAsString() : null;
+
+        if (text != null && text.equals("/start")) {
+            userState.put(chatId, 0);
+            sendMessage(chatId, "🎬 **Movie Helper**\nSend Thumbnail.");
+            return;
+        }
+
+        int state = userState.get(chatId);
+
+        if (state == 0 && message.has("photo")) {
+            JsonArray photos = message.getAsJsonArray("photo");
+            String fileId = photos.get(photos.size() - 1).getAsJsonObject().get("file_id").getAsString();
+            userData.get(chatId).put("photo", fileId);
+            userState.put(chatId, 1);
+            sendMessage(chatId, "✅ Send Movie Name.");
+        } 
+        else if (state == 1 && text != null) {
+            userData.get(chatId).put("name", text);
+            userState.put(chatId, 2);
+            sendMessage(chatId, "✅ Send Download Link.");
+        }
+        else if (state == 2 && text != null) {
+            userData.get(chatId).put("link", text);
+            sendMessage(chatId, "🤖 Generating with " + MODEL + "...");
+            new Thread(() -> generateGemini(chatId, userData.get(chatId).get("name"))).start();
+        }
+        else if (state == 3 && text != null) {
+             try {
+                 int minutes = Integer.parseInt(text);
+                 schedulePost(chatId, minutes);
+                 userState.put(chatId, 0); 
+             } catch (Exception e) {
+                 sendMessage(chatId, "⚠️ Invalid number. Try again.");
+             }
+        }
+    }
+
+    private void handleCallback(JsonObject callback) {
+        long chatId = callback.get("message").getAsJsonObject().get("chat").getAsJsonObject().get("id").getAsLong();
+        String data = callback.get("data").getAsString();
+        String callbackId = callback.get("id").getAsString();
+
+        // Answer callback to stop loading animation
+        answerCallback(callbackId);
+
+        if (data.equals("post_now")) {
+            postToChannel(chatId, userData.get(chatId));
+        } else if (data.equals("schedule")) {
+             userState.put(chatId, 3);
+             sendMessage(chatId, "⏳ Enter delay in minutes (e.g. 60):");
+        }
+    }
+
+    // --- API CALLS USING OKHTTP ---
+
+    private void sendMessage(long chatId, String text) {
+        MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", String.valueOf(chatId))
+            .addFormDataPart("text", text)
+            .addFormDataPart("parse_mode", "Markdown");
+        
+        executeTelegram("sendMessage", builder.build());
+    }
+
+    private void postToChannel(long adminId, Map<String, String> data) {
+        String keyboard = "{\"inline_keyboard\":[[{\"text\":\"📥 Download Movie 📥\",\"url\":\"" + data.get("link") + "\"}]]}";
+        
+        MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", CHANNEL)
+            .addFormDataPart("photo", data.get("photo"))
+            .addFormDataPart("caption", data.get("desc"))
+            .addFormDataPart("parse_mode", "HTML")
+            .addFormDataPart("reply_markup", keyboard);
+
+        if (executeTelegram("sendPhoto", builder.build())) {
+            sendMessage(adminId, "✅ Posted successfully!");
+        } else {
+            sendMessage(adminId, "❌ Failed to post. Check Channel ID/Permissions.");
+        }
+    }
+
+    private void sendPreview(long chatId, String photoId, String caption) {
+        String keyboard = "{\"inline_keyboard\":[[{\"text\":\"🚀 Post Now\",\"callback_data\":\"post_now\"}], [{\"text\":\"⏰ Schedule\",\"callback_data\":\"schedule\"}]]}";
+
+        MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", String.valueOf(chatId))
+            .addFormDataPart("photo", photoId)
+            .addFormDataPart("caption", caption)
+            .addFormDataPart("parse_mode", "HTML")
+            .addFormDataPart("reply_markup", keyboard);
+        
+        executeTelegram("sendPhoto", builder.build());
+    }
+
+    private void answerCallback(String callbackId) {
+         MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("callback_query_id", callbackId);
+         executeTelegram("answerCallbackQuery", builder.build());
+    }
+
+    private boolean executeTelegram(String method, RequestBody body) {
+        try {
+            Request request = new Request.Builder()
+                .url("https://api.telegram.org/bot" + TOKEN + "/" + method)
+                .post(body)
+                .build();
+            try (Response response = client.newCall(request).execute()) {
+                return response.isSuccessful();
+            }
+        } catch (Exception e) { return false; }
+    }
+
+    // --- GEMINI LOGIC ---
+    
+    private void generateGemini(long chatId, String movieName) {
+        try {
+            String prompt = PROMPT_TEMPLATE.replace("{name}", movieName) + " for " + movieName;
+            JSONObject json = new JSONObject();
+            json.put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
+
+            RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json"));
+            Request req = new Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent?key=" + GEMINI_KEY)
+                .post(body)
+                .build();
+
+            try (Response res = client.newCall(req).execute()) {
+                String resStr = res.body().string();
+                String result = new JSONObject(resStr).getJSONArray("candidates")
+                    .getJSONObject(0).getJSONObject("content")
+                    .getJSONArray("parts").getJSONObject(0).getString("text");
+                
+                userData.get(chatId).put("desc", result);
+                sendPreview(chatId, userData.get(chatId).get("photo"), result);
+            }
+        } catch (Exception e) {
+            sendMessage(chatId, "⚠️ AI Error: " + e.getMessage());
+        }
+    }
+
+    // --- SYSTEM UTILS ---
+
+    private void schedulePost(long chatId, int minutes) {
+        Map<String, String> data = userData.get(chatId);
+        File file = new File(getFilesDir(), "pending_post_" + System.currentTimeMillis() + ".json");
+        try (Writer writer = new FileWriter(file)) {
+            new Gson().toJson(data, writer);
+        } catch (IOException e) { e.printStackTrace(); }
+
+        AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(this, AlarmReceiver.class);
+        intent.putExtra("filePath", file.getAbsolutePath());
+        
+        PendingIntent pi = PendingIntent.getBroadcast(this, (int)System.currentTimeMillis(), intent, PendingIntent.FLAG_IMMUTABLE);
+        long triggerTime = System.currentTimeMillis() + (minutes * 60 * 1000);
+        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pi);
+
+        sendMessage(chatId, "✅ Scheduled! I will wake up in " + minutes + " mins.");
+    }
+
     private void loadConfig() {
         File file = new File(getFilesDir(), SETTINGS_FILE);
         if (!file.exists()) return;
-
         try (FileReader reader = new FileReader(file)) {
-            Map<String, String> settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+            java.lang.reflect.Type type = new com.google.gson.reflect.TypeToken<Map<String, String>>(){}.getType();
+            Map<String, String> settings = new Gson().fromJson(reader, type);
             if (settings != null) {
                 TOKEN = settings.getOrDefault("token", "");
                 USERNAME = settings.getOrDefault("botName", "");
@@ -72,198 +269,26 @@ public class BotService extends Service {
                 PROMPT_TEMPLATE = settings.getOrDefault("prompt", "");
                 MODEL = settings.getOrDefault("model", "gemini-1.5-flash");
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private Notification createNotification() {
         String channelId = "bot_service";
         NotificationChannel channel = new NotificationChannel(channelId, "Bot Service", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
-        
         return new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("MMCH Bot Running")
-                .setContentText("Connected as: " + USERNAME)
+                .setContentText("Listening for commands...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .build();
     }
 
     @Override
     public void onDestroy() {
+        isRunning = false;
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
-
-    // --- BOT INNER CLASS ---
-    public class MovieBot extends TelegramLongPollingBot {
-
-        @Override
-        public String getBotUsername() { return USERNAME; }
-        @Override
-        public String getBotToken() { return TOKEN; }
-
-        @Override
-        public void onUpdateReceived(Update update) {
-            try {
-                if (update.hasMessage()) {
-                    long chatId = update.getMessage().getChatId();
-                    String text = update.getMessage().getText();
-                    
-                    userState.putIfAbsent(chatId, 0);
-                    userData.putIfAbsent(chatId, new HashMap<>());
-
-                    if (text != null && text.equals("/start")) {
-                        userState.put(chatId, 0);
-                        sendMsg(chatId, "🎬 **Movie Helper**\nSend Thumbnail.");
-                        return;
-                    } else if (text != null && text.equals("/cancel")) {
-                        userState.put(chatId, 0);
-                        sendMsg(chatId, "❌ Cancelled.");
-                        return;
-                    }
-
-                    int state = userState.get(chatId);
-
-                    if (state == 0 && update.getMessage().hasPhoto()) {
-                        String fileId = update.getMessage().getPhoto().get(update.getMessage().getPhoto().size() - 1).getFileId();
-                        userData.get(chatId).put("photo", fileId);
-                        userState.put(chatId, 1);
-                        sendMsg(chatId, "✅ Send Movie Name.");
-                    } 
-                    else if (state == 1 && text != null) {
-                        userData.get(chatId).put("name", text);
-                        userState.put(chatId, 2);
-                        sendMsg(chatId, "✅ Send Download Link.");
-                    }
-                    else if (state == 2 && text != null) {
-                        userData.get(chatId).put("link", text);
-                        sendMsg(chatId, "🤖 Generating with " + MODEL + "...");
-                        new GeminiGenTask(chatId).execute(userData.get(chatId).get("name"));
-                    }
-                    else if (state == 3 && text != null) {
-                         try {
-                             int minutes = Integer.parseInt(text);
-                             schedulePost(chatId, minutes);
-                             userState.put(chatId, 0); 
-                         } catch (Exception e) {
-                             sendMsg(chatId, "⚠️ Invalid number. Try again.");
-                         }
-                    }
-                }
-                else if (update.hasCallbackQuery()) {
-                    String data = update.getCallbackQuery().getData();
-                    long chatId = update.getCallbackQuery().getMessage().getChatId();
-                    
-                    if (data.equals("post_now")) {
-                        postToChannel(chatId, userData.get(chatId));
-                    } else if (data.equals("schedule")) {
-                         userState.put(chatId, 3);
-                         sendMsg(chatId, "⏳ Enter delay in minutes (e.g. 60):");
-                    }
-                }
-            } catch (Exception e) { e.printStackTrace(); }
-        }
-
-        private void schedulePost(long chatId, int minutes) {
-            Map<String, String> data = userData.get(chatId);
-            File file = new File(getFilesDir(), "pending_post_" + System.currentTimeMillis() + ".json");
-            try (Writer writer = new FileWriter(file)) {
-                new Gson().toJson(data, writer);
-            } catch (IOException e) { e.printStackTrace(); }
-
-            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            Intent intent = new Intent(BotService.this, AlarmReceiver.class);
-            intent.putExtra("filePath", file.getAbsolutePath());
-            
-            PendingIntent pi = PendingIntent.getBroadcast(BotService.this, (int)System.currentTimeMillis(), intent, PendingIntent.FLAG_IMMUTABLE);
-            
-            long triggerTime = System.currentTimeMillis() + (minutes * 60 * 1000);
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pi);
-
-            sendMsg(chatId, "✅ Scheduled! I will wake up in " + minutes + " mins to post.");
-        }
-
-        private void postToChannel(long adminId, Map<String, String> data) {
-            try {
-                SendPhoto photo = new SendPhoto();
-                photo.setChatId(CHANNEL);
-                photo.setPhoto(new InputFile(data.get("photo")));
-                photo.setCaption(data.get("desc"));
-                photo.setParseMode("HTML");
-                
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                List<InlineKeyboardButton> row = new ArrayList<>();
-                InlineKeyboardButton btn = new InlineKeyboardButton();
-                btn.setText("📥 Download Movie 📥");
-                btn.setUrl(data.get("link"));
-                row.add(btn);
-                rows.add(row);
-                markup.setKeyboard(rows);
-                photo.setReplyMarkup(markup);
-                
-                // FIXED SCOPE ISSUE
-                MovieBot.this.execute(photo); 
-                sendMsg(adminId, "✅ Posted successfully!");
-            } catch (Exception e) { sendMsg(adminId, "Error: " + e.getMessage()); }
-        }
-
-        private void sendMsg(long chatId, String text) {
-            try { execute(new SendMessage(String.valueOf(chatId), text)); } catch (Exception e) {}
-        }
-        
-        // --- GEMINI TASK ---
-        private class GeminiGenTask extends AsyncTask<String, Void, String> {
-            long chatId;
-            public GeminiGenTask(long chatId) { this.chatId = chatId; }
-
-            @Override
-            protected String doInBackground(String... params) {
-                try {
-                    OkHttpClient client = new OkHttpClient();
-                    String prompt = PROMPT_TEMPLATE.replace("{name}", params[0]) + " for " + params[0];
-                    
-                    JSONObject json = new JSONObject();
-                    json.put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
-
-                    RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json"));
-                    Request req = new Request.Builder()
-                        .url("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent?key=" + GEMINI_KEY)
-                        .post(body)
-                        .build();
-
-                    Response res = client.newCall(req).execute();
-                    String resStr = res.body().string();
-                    return new JSONObject(resStr).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text");
-                } catch (Exception e) { return "Error: " + e.getMessage(); }
-            }
-
-            @Override
-            protected void onPostExecute(String result) {
-                userData.get(chatId).put("desc", result);
-                
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                List<InlineKeyboardButton> row = new ArrayList<>();
-                InlineKeyboardButton b1 = new InlineKeyboardButton("🚀 Post Now"); b1.setCallbackData("post_now");
-                InlineKeyboardButton b2 = new InlineKeyboardButton("⏰ Schedule"); b2.setCallbackData("schedule");
-                row.add(b1); row.add(b2);
-                rows.add(row);
-                markup.setKeyboard(rows);
-
-                SendPhoto photo = new SendPhoto();
-                photo.setChatId(String.valueOf(chatId));
-                photo.setPhoto(new InputFile(userData.get(chatId).get("photo")));
-                photo.setCaption(result);
-                photo.setParseMode("HTML");
-                photo.setReplyMarkup(markup);
-                
-                // FIXED SCOPE ISSUE
-                try { MovieBot.this.execute(photo); } catch (Exception e) {}
-            }
-        }
-    }
 }
