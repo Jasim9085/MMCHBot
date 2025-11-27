@@ -18,11 +18,10 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import okhttp3.*;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import java.io.*;
 import java.util.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class BotService extends Service {
 
@@ -77,7 +76,6 @@ public class BotService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // Here we could save current state if needed
     }
 
     @Override
@@ -130,11 +128,10 @@ public class BotService extends Service {
                         new GeminiGenTask(chatId).execute(userData.get(chatId).get("name"));
                     }
                     else if (state == 3 && text != null) {
-                         // Handling Schedule Input
                          try {
                              int minutes = Integer.parseInt(text);
                              schedulePost(chatId, minutes);
-                             userState.put(chatId, 0); // Reset
+                             userState.put(chatId, 0); 
                          } catch (Exception e) {
                              sendMsg(chatId, "⚠️ Invalid number. Try again.");
                          }
@@ -155,14 +152,12 @@ public class BotService extends Service {
         }
 
         private void schedulePost(long chatId, int minutes) {
-            // 1. Save data to file
             Map<String, String> data = userData.get(chatId);
             File file = new File(getFilesDir(), "pending_post_" + System.currentTimeMillis() + ".json");
             try (Writer writer = new FileWriter(file)) {
                 new Gson().toJson(data, writer);
             } catch (IOException e) { e.printStackTrace(); }
 
-            // 2. Set Alarm
             AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             Intent intent = new Intent(BotService.this, AlarmReceiver.class);
             intent.putExtra("filePath", file.getAbsolutePath());
@@ -248,7 +243,9 @@ public class BotService extends Service {
                 photo.setCaption(result);
                 photo.setParseMode("HTML");
                 photo.setReplyMarkup(markup);
-                try { execute(photo); } catch (Exception e) {}
+                
+                // --- FIX IS HERE: Use MovieBot.this.execute ---
+                try { MovieBot.this.execute(photo); } catch (Exception e) {}
             }
         }
     }
