@@ -24,19 +24,23 @@ public class MainActivity extends AppCompatActivity {
     private final String SETTINGS_FILE = "settings.json";
 
     private final String DEFAULT_PROMPT = 
-        "Generate an aesthetic Telegram movie post for '{name}'.\n\n" +
+        "Analyze the movie '{name}' and the attached poster image.\n" +
+        "Create a premium Telegram post using this EXACT structure:\n\n" +
+        "\n\n🎬 <b>TITLE</b> (Year)\n" +
+        "▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
+        "🌟 <b>Rating:</b> [If unreleased, write \"Coming Soon 📅\", else \"X.X/10 (IMDb)\"]\n" +
+        "🎭 <b>Starring:</b> [List top 3 Main Actors visible on poster or known for the movie]\n" +
+        "🔥 <b>Genre:</b> [Genre 1] | [Genre 2] | [more if available]\n\n" +
+        "📝 <b>The Hype:</b>\n" +
+        "<i>[Write a 1-sentence 'Hook' that makes people want to watch it. Use italics.]</i>\n\n" +
+        "📖 <b>Storyline:</b>\n" +
+        "[Write a short, engaging 2-3 sentence synopsis. Do NOT use emojis inside sentences.]\n\n" +
+        "[Insert 3 relevant hashtags here, e.g., #Action #NewMovie]\n\n" +
         "STRICT RULES:\n" +
-        "1. Use HTML tags <b> and <i> ONLY. Do NOT use Markdown (** or __).\n" +
-        "2. Do NOT include download links.\n" +
-        "3. Keep the Synopsis short (2-3 sentences).\n\n" +
-        "REQUIRED FORMAT:\n" +
-        "🎬 <b>Title</b> (Year)\n" +
-        "⭐️ <b>Rating:</b> x/10 (IMDb)\n" +
-        "🎭 <b>Cast:</b> Actor 1, Actor 2, Actor 3\n" +
-        "📚 <b>Genre:</b> Action, Drama, Horror, Thriller, etc.\n\n" +
-        "📝 <b>Storyline:</b>\n" +
-        "<i>[Insert engaging synopsis here with emojis]</i>";
-
+        "1. Do NOT use markdown (**). Use HTML <b> and <i> only.\n" +
+        "2. Do NOT include download links in the text.\n" +
+        "3. Prioritize actors shown on the poster for the Cast list.";
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -52,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
         logs = findViewById(R.id.txtLogs);
 
         // Setup Spinner
-        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"};
+        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview", "gemini-flash-lite-latest"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
@@ -113,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
                 new Gson().toJson(settings, writer);
             }
             Toast.makeText(this, "Settings Saved!", Toast.LENGTH_SHORT).show();
-            logs.setText("💾 Settings Saved.");
+            logs.setText(" Settings Saved.");
         } catch (Exception e) {
             Toast.makeText(this, "Save Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
