@@ -11,30 +11,11 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "2.0"
+        versionName "3.0"
     }
     
     buildFeatures {
         viewBinding true
-    }
-
-    // 👇 THIS BLOCK FIXES THE "MERGE JAVA RESOURCE" CRASH 👇
-    packaging {
-        resources {
-            excludes += "META-INF/DEPENDENCIES"
-            excludes += "META-INF/LICENSE"
-            excludes += "META-INF/LICENSE.txt"
-            excludes += "META-INF/license.txt"
-            excludes += "META-INF/NOTICE"
-            excludes += "META-INF/NOTICE.txt"
-            excludes += "META-INF/LICENSE.md"
-            excludes += "META-INF/LICENSE.markdown"
-            excludes += "META-INF/notice.txt"
-            excludes += "META-INF/NOTICE.md"
-            excludes += "META-INF/NOTICE.markdown"
-            excludes += "META-INF/ASL2.0"
-            excludes += "META-INF/*.kotlin_module"
-        }
     }
 }
 
@@ -42,8 +23,9 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
-    // Telegram & Logic
-    implementation 'org.telegram:telegrambots:6.9.7.1'
+    // ✅ OkHttp (Networking) - Native to Android, 0 crashes
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    
+    // ✅ Gson (JSON Parsing)
     implementation 'com.google.code.gson:gson:2.10.1'
 }
