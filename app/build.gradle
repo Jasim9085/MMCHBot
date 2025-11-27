@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.mmchbot'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.mmchbot"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "2.0"
+    }
+    
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.material:material:1.11.0' // Beautiful UI
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    
+    // Telegram & Logic
+    implementation 'org.telegram:telegrambots:6.9.7.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
