@@ -21,7 +21,9 @@
                 android:textSize="24sp"
                 android:textStyle="bold"
                 android:textColor="#333"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="16dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
             <!-- Telegram Config -->
             <com.google.android.material.card.MaterialCardView
@@ -112,11 +114,12 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Actions -->
+            <!-- FIXED: Replaced & with &amp; -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
-                android:text="💾 SAVE & RESTART BOT"
+                android:text="💾 SAVE &amp; RESTART BOT"
                 android:textSize="16sp"
                 app:cornerRadius="8dp"/>
                 
