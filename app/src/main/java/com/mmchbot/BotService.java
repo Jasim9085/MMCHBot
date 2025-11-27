@@ -3,7 +3,6 @@ package com.mmchbot;
 import android.app.*;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
@@ -18,6 +17,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import okhttp3.*;
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import java.io.*;
 import java.util.*;
 import org.json.JSONArray;
@@ -25,7 +25,6 @@ import org.json.JSONObject;
 
 public class BotService extends Service {
 
-    private SharedPreferences prefs;
     private TelegramLongPollingBot bot;
     private TelegramBotsApi botsApi;
 
@@ -34,21 +33,19 @@ public class BotService extends Service {
     private final Map<Long, Map<String, String>> userData = new HashMap<>();
     
     // Config
-    private String TOKEN, USERNAME, CHANNEL, GEMINI_KEY, PROMPT_TEMPLATE, MODEL;
+    private String TOKEN = "", USERNAME = "", CHANNEL = "", GEMINI_KEY = "", PROMPT_TEMPLATE = "", MODEL = "";
+    private final String SETTINGS_FILE = "settings.json";
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        prefs = getSharedPreferences("BotConfig", MODE_PRIVATE);
-        TOKEN = prefs.getString("token", "");
-        USERNAME = prefs.getString("botName", "");
-        CHANNEL = prefs.getString("channel", "");
-        GEMINI_KEY = prefs.getString("gemini", "");
-        PROMPT_TEMPLATE = prefs.getString("prompt", "");
-        MODEL = prefs.getString("model", "gemini-1.5-flash");
+        loadConfig(); // <--- READ FROM JSON HERE
 
         startForeground(1, createNotification());
 
-        if (TOKEN.isEmpty()) return START_STICKY;
+        if (TOKEN.isEmpty()) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
 
         try {
             if (botsApi == null) botsApi = new TelegramBotsApi(DefaultBotSession.class);
@@ -61,6 +58,25 @@ public class BotService extends Service {
         return START_STICKY;
     }
 
+    private void loadConfig() {
+        File file = new File(getFilesDir(), SETTINGS_FILE);
+        if (!file.exists()) return;
+
+        try (FileReader reader = new FileReader(file)) {
+            Map<String, String> settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
+            if (settings != null) {
+                TOKEN = settings.getOrDefault("token", "");
+                USERNAME = settings.getOrDefault("botName", "");
+                CHANNEL = settings.getOrDefault("channel", "");
+                GEMINI_KEY = settings.getOrDefault("gemini", "");
+                PROMPT_TEMPLATE = settings.getOrDefault("prompt", "");
+                MODEL = settings.getOrDefault("model", "gemini-1.5-flash");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private Notification createNotification() {
         String channelId = "bot_service";
         NotificationChannel channel = new NotificationChannel(channelId, "Bot Service", NotificationManager.IMPORTANCE_LOW);
@@ -68,7 +84,7 @@ public class BotService extends Service {
         
         return new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("MMCH Bot Running")
-                .setContentText("Listening for commands...")
+                .setContentText("Connected as: " + USERNAME)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .build();
     }
@@ -189,7 +205,8 @@ public class BotService extends Service {
                 markup.setKeyboard(rows);
                 photo.setReplyMarkup(markup);
                 
-                execute(photo);
+                // FIXED SCOPE ISSUE
+                MovieBot.this.execute(photo); 
                 sendMsg(adminId, "✅ Posted successfully!");
             } catch (Exception e) { sendMsg(adminId, "Error: " + e.getMessage()); }
         }
@@ -244,7 +261,7 @@ public class BotService extends Service {
                 photo.setParseMode("HTML");
                 photo.setReplyMarkup(markup);
                 
-                // --- FIX IS HERE: Use MovieBot.this.execute ---
+                // FIXED SCOPE ISSUE
                 try { MovieBot.this.execute(photo); } catch (Exception e) {}
             }
         }
