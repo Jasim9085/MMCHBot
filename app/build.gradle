@@ -17,10 +17,25 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    // 👇 THIS BLOCK FIXES THE "MERGE JAVA RESOURCE" CRASH 👇
+    packaging {
+        resources {
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/license.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/notice.txt"
+            excludes += "META-INF/ASL2.0"
+            excludes += "META-INF/*.kotlin_module"
+        }
+    }
 }
 
 dependencies {
-    implementation 'com.google.android.material:material:1.11.0' // Beautiful UI
+    implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
     // Telegram & Logic
