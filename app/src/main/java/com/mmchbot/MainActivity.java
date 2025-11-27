@@ -23,7 +23,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView logs;
     private final String SETTINGS_FILE = "settings.json";
 
-    // 👇 THIS IS THE NEW STRICT PROMPT 👇
     private final String DEFAULT_PROMPT = 
         "Generate an aesthetic Telegram movie post for '{name}'.\n\n" +
         "STRICT RULES:\n" +
@@ -32,9 +31,9 @@ public class MainActivity extends AppCompatActivity {
         "3. Keep the Synopsis short (2-3 sentences).\n\n" +
         "REQUIRED FORMAT:\n" +
         "🎬 <b>Title</b> (Year)\n" +
-        "⭐️ <b>Rating:</b> 0.0/10 (IMDb)\n" +
+        "⭐️ <b>Rating:</b> x/10 (IMDb)\n" +
         "🎭 <b>Cast:</b> Actor 1, Actor 2, Actor 3\n" +
-        "📚 <b>Genre:</b> Action, Drama, Horror, Thriller etc.\n\n" +
+        "📚 <b>Genre:</b> Action, Drama, Horror, Thriller, etc.\n\n" +
         "📝 <b>Storyline:</b>\n" +
         "<i>[Insert engaging synopsis here with emojis]</i>";
 
@@ -53,30 +52,26 @@ public class MainActivity extends AppCompatActivity {
         logs = findViewById(R.id.txtLogs);
 
         // Setup Spinner
-        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"};
+        String[] models = {"gemini-1.5-flash", "gemini-pro"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
-        // Load Settings
         loadSettingsFromJson();
 
-        // Save & Restart
         findViewById(R.id.btnSave).setOnClickListener(v -> {
             saveSettingsToJson();
             restartBotService();
         });
 
-        // Stop
         findViewById(R.id.btnStop).setOnClickListener(v -> {
             stopService(new Intent(this, BotService.class));
             logs.setText("🛑 Service Stopped");
+            Toast.makeText(this, "Service Stopped", Toast.LENGTH_SHORT).show();
         });
     }
 
     private void loadSettingsFromJson() {
         File file = new File(getFilesDir(), SETTINGS_FILE);
-        
-        // If file doesn't exist, fill the Prompt with our new Default
         if (!file.exists()) {
             prompt.setText(DEFAULT_PROMPT);
             return;
@@ -84,31 +79,22 @@ public class MainActivity extends AppCompatActivity {
 
         try (FileReader reader = new FileReader(file)) {
             Map<String, String> settings = new Gson().fromJson(reader, new TypeToken<Map<String, String>>(){}.getType());
-            
             if (settings != null) {
                 token.setText(settings.getOrDefault("token", ""));
                 botName.setText(settings.getOrDefault("botName", ""));
                 channel.setText(settings.getOrDefault("channel", ""));
                 gemini.setText(settings.getOrDefault("gemini", ""));
                 
-                // Use saved prompt, OR default if empty
                 String savedPrompt = settings.getOrDefault("prompt", "");
-                if (savedPrompt.isEmpty()) {
-                    prompt.setText(DEFAULT_PROMPT);
-                } else {
-                    prompt.setText(savedPrompt);
-                }
+                prompt.setText(savedPrompt.isEmpty() ? DEFAULT_PROMPT : savedPrompt);
                 
-                // Set Spinner
-                String savedModel = settings.getOrDefault("model", "gemini-2.5-flash");
-                if (savedModel.contains("pro")) modelSpinner.setSelection(1);
-                else modelSpinner.setSelection(0);
+                String savedModel = settings.getOrDefault("model", "gemini-1.5-flash");
+                modelSpinner.setSelection(savedModel.contains("pro") ? 1 : 0);
                 
-                logs.setText("✅ Settings loaded.");
+                logs.setText("✅ Settings loaded from storage.");
             }
         } catch (Exception e) {
-            logs.setText("⚠️ Error loading settings: " + e.getMessage());
-            prompt.setText(DEFAULT_PROMPT); // Fallback
+            logs.setText("⚠️ Load Error: " + e.getMessage());
         }
     }
 
@@ -126,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
             try (FileWriter writer = new FileWriter(file)) {
                 new Gson().toJson(settings, writer);
             }
-            Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Settings Saved!", Toast.LENGTH_SHORT).show();
             logs.setText("💾 Settings Saved.");
         } catch (Exception e) {
             Toast.makeText(this, "Save Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -137,6 +123,6 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, BotService.class);
         stopService(intent); 
         startForegroundService(intent); 
-        logs.append("\n🚀 Bot Restarting...");
+        logs.append("\n🚀 Service Restarted.");
     }
 }
