@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
         logs = findViewById(R.id.txtLogs);
 
         // Setup Spinner
-        String[] models = {"gemini-1.5-flash", "gemini-pro"};
+        String[] models = {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, models);
         modelSpinner.setAdapter(adapter);
 
@@ -100,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 
                 // Set Spinner
-                String savedModel = settings.getOrDefault("model", "gemini-1.5-flash");
+                String savedModel = settings.getOrDefault("model", "gemini-2.5-flash");
                 if (savedModel.contains("pro")) modelSpinner.setSelection(1);
                 else modelSpinner.setSelection(0);
                 
